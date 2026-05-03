@@ -15,8 +15,9 @@
     "start": "node server.js"
   },
   "repository": {
-    "type": "git",
-    "url": "git+https://elblancas3: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@github.com/elblancas3/trailtrack.git"
+  "type": "git",
+  "url": "https://github.com/elblancas3/trailtrack.git"
+},
   },
   "keywords": [],
   "author": "",
