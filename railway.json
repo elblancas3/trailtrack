@@ -1,0 +1,1 @@
+{"build":{"cmd":"npm install"},"deploy":{"startCmd":"node server.js"}} 
