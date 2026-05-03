@@ -3,20 +3,23 @@
   "short_name": "TrailTrack",
   "description": "Seguimiento de equipo en ruta de trail",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0A1A0A",
   "theme_color": "#0A1A0A",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%230A1A0A'/%3E%3Ctext x='96' y='130' font-size='110' text-anchor='middle' fill='%23D4A843'%3E◈%3C/text%3E%3C/svg%3E",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%230A1A0A'/%3E%3Ctext x='256' y='340' font-size='290' text-anchor='middle' fill='%23D4A843'%3E◈%3C/text%3E%3C/svg%3E",
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
   "categories": ["sports", "navigation", "utilities"],

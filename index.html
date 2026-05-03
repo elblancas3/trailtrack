@@ -377,7 +377,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <input class="ob-in" id="ob-name" placeholder="Emilio, Ana, Rodrigo…" maxlength="20">
 
     <div class="ob-lbl">IP DEL SERVIDOR (hotspot)</div>
-    <input class="ob-in" id="ob-ws" value="192.168.43.1:8080" placeholder="192.168.43.1:8080">
+    <input class="ob-in" id="ob-ws" value="trailtrack-production.up.railway.app" placeholder="192.168.43.1:8080">
 
     <button class="ob-btn" onclick="boot(true)">▶ CONECTAR AL EQUIPO</button>
     <button class="ob-btn sec" onclick="boot(false)">◎ MODO SOLO (sin red)</button>
@@ -532,6 +532,14 @@ function boot(connect) {
   myName = (document.getElementById('ob-name').value.trim() || 'Trailero').substring(0,20);
   const wsAddr = document.getElementById('ob-ws').value.trim();
   setApiBase(wsAddr);
+
+  // Guardar sesión
+  try {
+    localStorage.setItem('tt_name', myName);
+    localStorage.setItem('tt_server', wsAddr);
+    localStorage.setItem('tt_connect', connect ? '1' : '0');
+  } catch(_) {}
+
   document.getElementById('my-name').textContent = myName.toUpperCase();
   document.getElementById('onboard').style.display = 'none';
 
@@ -539,6 +547,20 @@ function boot(connect) {
   startGPS();
   if (connect && wsAddr) connectWS(wsAddr);
 }
+
+// Auto-arrancar si ya hay sesión guardada
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const name   = localStorage.getItem('tt_name');
+    const server = localStorage.getItem('tt_server') || 'trailtrack-production.up.railway.app';
+    const conn   = localStorage.getItem('tt_connect');
+    if (name) {
+      document.getElementById('ob-name').value = name;
+      document.getElementById('ob-ws').value   = server;
+      setTimeout(() => boot(conn !== '0'), 400);
+    }
+  } catch(_) {}
+});
 
 // ════════════════════════════════════════════════
 //   MAP
