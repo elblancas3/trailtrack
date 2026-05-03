@@ -4,5 +4,26 @@
     "pg": "^8.20.0",
     "qrcode-terminal": "^0.12.0",
     "ws": "^8.20.0"
-  }
+  },
+  "name": "files-(1)",
+  "version": "1.0.0",
+  "description": "\"# trailtrack\"",
+  "main": "server.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://elblancas3: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@github.com/elblancas3/trailtrack.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/elblancas3/trailtrack/issues"
+  },
+  "homepage": "https://github.com/elblancas3/trailtrack#readme"
 }
