@@ -255,6 +255,45 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .ob-btn.sec:hover{background:rgba(255,255,255,.03)}
 .ob-hint{font-size:9px;color:var(--muted);margin-top:6px;line-height:1.5}
 
+
+/* ─── RECORDING ─── */
+#rec-bar{
+  position:fixed;top:0;left:0;right:0;z-index:1800;
+  background:rgba(232,90,74,.95);backdrop-filter:blur(10px);
+  padding:8px 16px;display:none;
+  align-items:center;gap:12px;
+  border-bottom:1px solid rgba(255,255,255,.2);
+}
+#rec-bar.on{display:flex}
+.rec-dot{
+  width:10px;height:10px;border-radius:50%;
+  background:#fff;animation:blink 1s infinite;flex-shrink:0;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#rec-stats{flex:1;font-size:11px;color:rgba(255,255,255,.9);display:flex;gap:16px}
+#rec-stop{
+  background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);
+  border-radius:6px;padding:5px 12px;color:#fff;
+  font-family:var(--mono);font-size:10px;letter-spacing:1px;cursor:pointer;
+}
+
+/* ─── SUMMARY MODAL ─── */
+#summary-modal{
+  position:fixed;inset:0;z-index:3500;
+  background:rgba(0,0,0,.88);backdrop-filter:blur(8px);
+  display:none;align-items:center;justify-content:center;
+}
+#summary-modal.open{display:flex}
+.sum-box{
+  background:#0C180C;border:1px solid var(--border2);
+  border-radius:14px;padding:24px;width:320px;max-width:92vw;
+}
+.sum-title{font-size:9px;color:var(--muted);letter-spacing:2px;margin-bottom:16px}
+.sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.sum-stat{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;padding:12px}
+.sum-stat-l{font-size:8px;color:var(--muted);letter-spacing:1.5px;margin-bottom:4px}
+.sum-stat-v{font-size:20px;font-weight:bold;color:var(--gold)}
+
 /* ─── SCROLLBARS ─── */
 *::-webkit-scrollbar{width:3px;height:3px}
 *::-webkit-scrollbar-track{background:transparent}
@@ -416,6 +455,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <!-- ═══ FABs RIGHT ═══ -->
 <div class="fab-col" id="fab-r">
   <button class="fab" onclick="centerGPS()" title="Centrar GPS">📍</button>
+  <button class="fab" id="fab-rec" onclick="toggleRecording()" title="Grabar ruta">⏺</button>
   <button class="fab" id="fab-chat" onclick="openSide('chat')" title="Chat">
     💬<span class="fab-n" id="chat-n"></span>
   </button>
@@ -449,12 +489,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   <div class="lbox">
     <div class="lbox-title">SELECCIONAR MAPA BASE</div>
     <div class="lgrid">
-      <div class="lopt on" id="lo-topo" onclick="setLayer('topo')">
+      <div class="lopt" id="lo-topo" onclick="setLayer('topo')">
         <div class="lopt-ico">🏔</div>
         <div class="lopt-nm">Topografía</div>
         <div class="lopt-ds">Curvas de nivel</div>
       </div>
-      <div class="lopt" id="lo-sat" onclick="setLayer('sat')">
+      <div class="lopt on" id="lo-sat" onclick="setLayer('sat')">
         <div class="lopt-ico">🛰</div>
         <div class="lopt-nm">Satélite</div>
         <div class="lopt-ds">Imagen ESRI</div>
@@ -567,7 +607,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ════════════════════════════════════════════════
 function initMap() {
   map = L.map('map', { center:[25.67,-100.31], zoom:13, zoomControl:false });
-  setLayer('topo');
+  setLayer('sat');
 
   map.on('click', e => {
     if (!rawPts.length) return;
@@ -636,6 +676,9 @@ function onPos(p) {
     setText('s-prog', kmSoFar.toFixed(2)+' km');
     drawProfile();
   }
+
+  // Agregar punto a grabación si está activa
+  if (recording) addRecPoint(lat, lon, myAlt);
 
   wsSend({ type:'position', position:{ lat,lon,alt:myAlt,spd:mySpd } });
 }
@@ -981,6 +1024,223 @@ function escHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 //   SERVICE WORKER
 // ════════════════════════════════════════════════
 
+
+// ════════════════════════════════════════════════
+//   GRABAR RUTA
+// ════════════════════════════════════════════════
+let recording     = false;
+let recPts        = [];      // [{lat,lon,ele,ts}]
+let recStart      = null;
+let recTimer      = null;
+let recPolyline   = null;
+let recGain       = 0;
+let recMaxAlt     = -Infinity;
+
+function toggleRecording() {
+  if (recording) stopRecording();
+  else startRecording();
+}
+
+function startRecording() {
+  if (!myPos) { toast('⚠ Espera a tener señal GPS'); return; }
+  recording  = true;
+  recPts     = [];
+  recStart   = Date.now();
+  recGain    = 0;
+  recMaxAlt  = -Infinity;
+
+  document.getElementById('rec-bar').classList.add('on');
+  document.getElementById('fab-rec').classList.add('on');
+  document.getElementById('fab-rec').textContent = '⏹';
+
+  // Ajustar HUD hacia abajo para que no tape la barra roja
+  document.getElementById('hud').style.top = '44px';
+
+  // Dibujar polyline en mapa
+  if (recPolyline) map.removeLayer(recPolyline);
+  recPolyline = L.polyline([], { color:'#E85A4A', weight:4, opacity:.9 }).addTo(map);
+
+  // Timer display
+  recTimer = setInterval(updateRecDisplay, 1000);
+
+  toast('⏺ Grabando ruta…');
+}
+
+function addRecPoint(lat, lon, alt) {
+  if (!recording) return;
+  const pt = { lat, lon, ele: alt ?? 0, ts: Date.now() };
+
+  // Solo agregar si se movió más de 5m del último punto
+  if (recPts.length > 0) {
+    const last = recPts[recPts.length-1];
+    if (hvDist(last, pt) < 0.005) return; // menos de 5m
+  }
+
+  recPts.push(pt);
+  recPolyline.addLatLng([lat, lon]);
+
+  // Ganancia
+  if (recPts.length > 1) {
+    const dElev = pt.ele - recPts[recPts.length-2].ele;
+    if (dElev > 0) recGain += dElev;
+  }
+  if (pt.ele > recMaxAlt) recMaxAlt = pt.ele;
+
+  updateRecDisplay();
+}
+
+function updateRecDisplay() {
+  if (!recording) return;
+  const elapsed = Date.now() - recStart;
+  const mins = Math.floor(elapsed/60000);
+  const secs = Math.floor((elapsed%60000)/1000);
+  const timeStr = `${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}`;
+
+  let km = 0;
+  for (let i=1;i<recPts.length;i++) km += hvDist(recPts[i-1],recPts[i]);
+
+  document.getElementById('rec-time').textContent = timeStr;
+  document.getElementById('rec-km').textContent   = km.toFixed(2)+' km';
+  document.getElementById('rec-gain').textContent = Math.round(recGain)+' m';
+}
+
+function stopRecording() {
+  if (!recording) return;
+  recording = false;
+  clearInterval(recTimer);
+
+  document.getElementById('rec-bar').classList.remove('on');
+  document.getElementById('fab-rec').classList.remove('on');
+  document.getElementById('fab-rec').textContent = '⏺';
+  document.getElementById('hud').style.top = '';
+
+  if (recPts.length < 2) { toast('⚠ Ruta muy corta, descartada'); return; }
+
+  // Calcular métricas finales
+  const elapsed = Date.now() - recStart;
+  const mins    = Math.floor(elapsed/60000);
+  const secs    = Math.floor((elapsed%60000)/1000);
+  let km = 0;
+  for (let i=1;i<recPts.length;i++) km += hvDist(recPts[i-1],recPts[i]);
+  const spdMedia = km / (elapsed/3600000);
+  const minAlt   = Math.min(...recPts.map(p=>p.ele));
+
+  // Llenar summary
+  document.getElementById('sum-km').textContent     = km.toFixed(2)+' km';
+  document.getElementById('sum-time').textContent   = `${mins}:${secs.toString().padStart(2,'0')}`;
+  document.getElementById('sum-gain').textContent   = Math.round(recGain)+' m';
+  document.getElementById('sum-spd').textContent    = spdMedia.toFixed(1)+' km/h';
+  document.getElementById('sum-altmax').textContent = Math.round(recMaxAlt)+' m';
+  document.getElementById('sum-pts').textContent    = recPts.length;
+
+  // Nombre por defecto con fecha
+  const fecha = new Date().toLocaleDateString('es-MX',{day:'2-digit',month:'short'});
+  document.getElementById('sum-nombre').value = `Ruta ${fecha}`;
+
+  // Verificar conexión
+  document.getElementById('sum-offline').style.display = !navigator.onLine ? 'block' : 'none';
+
+  document.getElementById('summary-modal').classList.add('open');
+}
+
+async function saveRecordedRoute() {
+  const nombre = document.getElementById('sum-nombre').value.trim() || 'Ruta grabada';
+  const dif    = document.getElementById('sum-dif').value;
+
+  let km = 0;
+  for (let i=1;i<recPts.length;i++) km += hvDist(recPts[i-1],recPts[i]);
+  const elapsed   = Date.now() - recStart;
+  const durMin    = Math.round(elapsed/60000);
+  const spdMedia  = km / (elapsed/3600000);
+  const minAlt    = Math.min(...recPts.map(p=>p.ele));
+
+  const payload = {
+    nombre,
+    dificultad:    dif,
+    distancia_km:  parseFloat(km.toFixed(3)),
+    ganancia_m:    parseFloat(recGain.toFixed(1)),
+    elev_max_m:    parseFloat(recMaxAlt.toFixed(1)),
+    elev_min_m:    parseFloat(minAlt.toFixed(1)),
+    puntos_gpx:    recPts.length,
+    autor:         myName || 'anon',
+    puntos:        recPts.map(p=>({ lat:p.lat, lon:p.lon, ele:p.ele })),
+  };
+
+  const sesPayload = {
+    usuario:         myName || 'anon',
+    distancia_km:    parseFloat(km.toFixed(3)),
+    duracion_min:    durMin,
+    velocidad_media: parseFloat(spdMedia.toFixed(2)),
+    ganancia_m:      parseFloat(recGain.toFixed(1)),
+    elev_max_m:      parseFloat(recMaxAlt.toFixed(1)),
+    fecha_inicio:    new Date(recStart).toISOString(),
+    fecha_fin:       new Date().toISOString(),
+    puntos:          recPts.map(p=>({ lat:p.lat, lon:p.lon, ele:p.ele })),
+  };
+
+  if (navigator.onLine) {
+    try {
+      toast('💾 Guardando en Neon…');
+      const ruta = await apiPost('/api/rutas', payload);
+      sesPayload.ruta_id = ruta.id;
+      await apiPost('/api/sesiones', sesPayload);
+      toast('✓ Ruta guardada correctamente');
+
+      // Dibujar en mapa
+      rawPts = recPts;
+      processRoute();
+    } catch(e) {
+      toast('✗ Error al guardar: '+e.message);
+      saveOffline(payload, sesPayload);
+      return;
+    }
+  } else {
+    saveOffline(payload, sesPayload);
+  }
+
+  document.getElementById('summary-modal').classList.remove('open');
+}
+
+function saveOffline(rutaPayload, sesPayload) {
+  try {
+    const pending = JSON.parse(localStorage.getItem('tt_pending') || '[]');
+    pending.push({ ruta: rutaPayload, sesion: sesPayload, ts: Date.now() });
+    localStorage.setItem('tt_pending', JSON.stringify(pending));
+    toast('📱 Guardado localmente — subirá al reconectarse');
+  } catch(e) {
+    toast('✗ Error al guardar local');
+  }
+}
+
+// Subir rutas pendientes cuando regresa la conexión
+window.addEventListener('online', async () => {
+  try {
+    const pending = JSON.parse(localStorage.getItem('tt_pending') || '[]');
+    if (!pending.length) return;
+    toast(`📡 Subiendo ${pending.length} ruta(s) pendiente(s)…`);
+    const remaining = [];
+    for (const item of pending) {
+      try {
+        const ruta = await apiPost('/api/rutas', item.ruta);
+        item.sesion.ruta_id = ruta.id;
+        await apiPost('/api/sesiones', item.sesion);
+      } catch(_) {
+        remaining.push(item);
+      }
+    }
+    localStorage.setItem('tt_pending', JSON.stringify(remaining));
+    if (!remaining.length) toast('✓ Todas las rutas subidas a Neon');
+  } catch(_) {}
+});
+
+function discardRecording() {
+  if (recPolyline) { map.removeLayer(recPolyline); recPolyline = null; }
+  recPts = [];
+  document.getElementById('summary-modal').classList.remove('open');
+  toast('Ruta descartada');
+}
+
+
 // ════════════════════════════════════════════════
 //   NEON DB — API CLIENT
 // ════════════════════════════════════════════════
@@ -1260,6 +1520,51 @@ window.addEventListener('load', ()=>{
   document.getElementById('map').style.top = hudH+'px';
 });
 </script>
+
+
+<!-- ═══ RECORDING BAR ═══ -->
+<div id="rec-bar">
+  <div class="rec-dot"></div>
+  <div id="rec-stats">
+    <span>⏱ <b id="rec-time">00:00</b></span>
+    <span>📏 <b id="rec-km">0.00 km</b></span>
+    <span>↑ <b id="rec-gain">0 m</b></span>
+  </div>
+  <button class="rec-stop" onclick="stopRecording()">■ TERMINAR</button>
+</div>
+
+<!-- ═══ SUMMARY MODAL ═══ -->
+<div id="summary-modal">
+  <div class="sum-box">
+    <div class="sum-title">RESUMEN DE RUTA</div>
+    <div class="sum-grid">
+      <div class="sum-stat"><div class="sum-stat-l">DISTANCIA</div><div class="sum-stat-v" id="sum-km">—</div></div>
+      <div class="sum-stat"><div class="sum-stat-l">TIEMPO</div><div class="sum-stat-v" id="sum-time">—</div></div>
+      <div class="sum-stat"><div class="sum-stat-l">GANANCIA</div><div class="sum-stat-v" id="sum-gain">—</div></div>
+      <div class="sum-stat"><div class="sum-stat-l">VEL. MEDIA</div><div class="sum-stat-v" id="sum-spd">—</div></div>
+      <div class="sum-stat"><div class="sum-stat-l">ALT. MÁX</div><div class="sum-stat-v" id="sum-altmax">—</div></div>
+      <div class="sum-stat"><div class="sum-stat-l">PUNTOS GPS</div><div class="sum-stat-v" id="sum-pts">—</div></div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div class="db-lbl">NOMBRE DE LA RUTA</div>
+      <input class="db-in" id="sum-nombre" placeholder="Mi ruta del día…">
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="db-lbl">DIFICULTAD</div>
+      <select class="db-sel" id="sum-dif">
+        <option value="fácil">Fácil</option>
+        <option value="moderada" selected>Moderada</option>
+        <option value="difícil">Difícil</option>
+        <option value="extrema">Extrema</option>
+      </select>
+    </div>
+    <button class="db-btn pri" onclick="saveRecordedRoute()">💾 GUARDAR EN NEON</button>
+    <button class="db-btn sec" style="margin-top:8px" onclick="discardRecording()">DESCARTAR</button>
+    <div id="sum-offline" style="font-size:9px;color:var(--gold);margin-top:8px;display:none">
+      ⚠ Sin conexión — se guardará localmente y subirá al reconectarse
+    </div>
+  </div>
+</div>
 
 <!-- ═══ TOAST ═══ -->
 <div id="toast"></div>
