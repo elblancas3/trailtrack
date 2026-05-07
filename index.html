@@ -843,7 +843,9 @@ function drawProfile() {
 // ════════════════════════════════════════════════
 function connectWS(addr) {
   try {
-    ws = new WebSocket(`ws://${addr}`);
+    // Usar wss:// si la página está en HTTPS (Railway), ws:// si es red local
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${addr}`);
     setBadge('b-ws','dim','… WS');
 
     ws.onopen = ()=>{
