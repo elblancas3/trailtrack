@@ -569,7 +569,8 @@ let watchId = null;
 //   BOOT
 // ════════════════════════════════════════════════
 function boot(connect) {
-  myName = (document.getElementById('ob-name').value.trim() || 'Trailero').substring(0,20);
+  const savedName = (() => { try { return localStorage.getItem('tt_name') || ''; } catch(_){ return ''; } })();
+  myName = (document.getElementById('ob-name').value.trim() || savedName || 'Trailero').substring(0,20);
   const wsAddr = document.getElementById('ob-ws').value.trim();
   setApiBase(wsAddr);
 
@@ -595,11 +596,28 @@ window.addEventListener('DOMContentLoaded', () => {
     const server = localStorage.getItem('tt_server') || 'trailtrack-production.up.railway.app';
     const conn   = localStorage.getItem('tt_connect');
     if (name) {
+      // Pre-llenar con nombre guardado
       document.getElementById('ob-name').value = name;
       document.getElementById('ob-ws').value   = server;
-      setTimeout(() => boot(conn !== '0'), 400);
+      // Auto-boot directo
+      setTimeout(() => boot(conn !== '0'), 300);
     }
   } catch(_) {}
+});
+
+// Reconectar WebSocket al volver a primer plano
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Si WS está cerrado, reconectar
+    if (ws && ws.readyState === WebSocket.CLOSED) {
+      try {
+        const server = localStorage.getItem('tt_server') || 'trailtrack-production.up.railway.app';
+        connectWS(server);
+      } catch(_) {}
+    }
+    // Reactivar GPS si se pausó
+    if (!watchId && myName) startGPS();
+  }
 });
 
 // ════════════════════════════════════════════════
