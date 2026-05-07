@@ -31,7 +31,7 @@ const { WebSocketServer } = require('ws');
 const { Pool } = require('pg');
 
 // ─── CONFIG ──────────────────────────────────────────────────
-const PORT   = parseInt(process.argv.find(a=>a.startsWith('--port='))?.split('=')[1]??8080);
+const PORT   = parseInt(process.env.PORT || process.argv.find(a=>a.startsWith('--port='))?.split('=')[1] || 8080);
 const DB_URL = process.env.DATABASE_URL;
 const COLORS = ['#D4A843','#5BBF8A','#6AABE8','#CF6EBF','#E85A4A','#5BC4BF'];
 const STATIC = __dirname;
