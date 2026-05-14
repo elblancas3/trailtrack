@@ -1,24 +1,27 @@
 {
   "name": "TrailTrack",
   "short_name": "TrailTrack",
-  "description": "Seguimiento de equipos en rutas de trail running",
+  "description": "Seguimiento de equipo en ruta de trail",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "theme_color": "#0A1628",
+  "orientation": "any",
   "background_color": "#0A1628",
-  "orientation": "portrait",
+  "theme_color": "#0A1628",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "categories": ["sports", "navigation", "utilities"],
+  "lang": "es"
 }
